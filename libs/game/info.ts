@@ -33,7 +33,7 @@ namespace info {
         // null: reached 0 and callback was invoked
         public life: number;
         public lifeZeroHandler: () => void;
-        public scoreReachedHandler: ScoreReachedHandler
+        public scoreReachedHandlers: ScoreReachedHandler[]
 
         public showScore?: boolean;
         public showLife?: boolean;
@@ -711,11 +711,15 @@ namespace info {
             const oldScore = state.score || 0;
             state.score = (value | 0);
 
-            if (state.scoreReachedHandler && (
-                (oldScore < state.scoreReachedHandler.score && state.score >= state.scoreReachedHandler.score) ||
-                (oldScore > state.scoreReachedHandler.score && state.score <= state.scoreReachedHandler.score)
-            )) {
-                state.scoreReachedHandler.handler();
+            // look for any handlers that should have fired since the last update
+            if (state.scoreReachedHandlers) {
+                state.scoreReachedHandlers.forEach((scoreReachedHandler, idx) => {
+                    if ((oldScore < scoreReachedHandler.score && state.score >= scoreReachedHandler.score) ||
+                        (oldScore > scoreReachedHandler.score && state.score <= scoreReachedHandler.score)
+                    ) {
+                        scoreReachedHandler.handler();
+                    }
+                });
             }
         }
 
@@ -766,7 +770,17 @@ namespace info {
 
         onScore(score: number, handler: () => void) {
             const state = this.getState();
-            state.scoreReachedHandler = new ScoreReachedHandler(score, handler);
+
+            // replace any handler for this score level, or add a new one
+            const allHandlers = state.scoreReachedHandlers;
+            const oldHandlers = state.scoreReachedHandlers.filter(sh => sh.score === score);
+            const newHandler = new ScoreReachedHandler(score, handler);
+
+            // remove old handlers
+            if (oldHandlers) { oldHandlers.forEach(sh => allHandlers.removeElement(sh)); }
+            allHandlers.push(newHandler);
+            
+            state.scoreReachedHandlers = allHandlers;
         }
 
         raiseLifeZero(gameOver: boolean) {
